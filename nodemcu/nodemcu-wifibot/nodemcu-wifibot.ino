@@ -116,15 +116,50 @@ void loop()
     /************************ Run function according to incoming data from application *************************/
 
     /* If the incoming data is "forward", run the "MotorForward" function */
-    if (data == "forward") MotorForward();
+    if (data == "forward")
+        {
+        //server.send(200, "text/plain", "OK");
+        client.println("ok");
+        MotorForward();
+        }
     /* If the incoming data is "backward", run the "MotorBackward" function */
-    else if (data == "backward") MotorBackward();
+    else if (data == "backward")
+        {
+        //server.send(200, "text/plain", "OK");
+        client.println("ok");
+        MotorBackward();
+        }
     /* If the incoming data is "left", run the "TurnLeft" function */
-    else if (data == "left") TurnLeft();
+    else if (data == "left")
+        {
+        //server.send(200, "text/plain", "OK");
+        client.println("ok");
+        TurnLeft();
+        }
     /* If the incoming data is "right", run the "TurnRight" function */
-    else if (data == "right") TurnRight();
+    else if (data == "right")
+        {
+        //server.send(200, "text/plain", "OK");
+        client.println("ok");
+        TurnRight();
+        }
     /* If the incoming data is "stop", run the "MotorStop" function */
-    else if (data == "stop") MotorStop();
+    else if (data == "stop")
+        {
+        //server.send(200, "text/plain", "OK");
+        client.println("ok");
+        MotorStop();
+        }
+    // If the incoming data is "whoareyou", returns "nodemcuwifibot"
+    else if (data == "whoareyou")
+        {
+        // server.send(200, "text/plain", "nodemcuwifibot");
+        client.println("HTTP/1.1 200 OK");
+        client.println("Content-type:text/plain");
+        client.println("Connection: close");
+        client.println();
+        client.println("nodemcuwifibot");
+        }
     }
 
 
@@ -188,8 +223,11 @@ void MotorStop(void)
 /********************************** RECEIVE DATA FROM the APP ******************************************/
 String checkClient(void)
     {
-    while (!client.available()) delay(1);
+    while (!client.available())
+        delay(1);
     String request = client.readStringUntil('\r');
+    Serial.print("request: ");
+    Serial.println(request);
     request.remove(0, 5);
     request.remove(request.length() - 9, 9);
     return request;
