@@ -7,3 +7,5 @@ This is a simple robot I've upgraded for my daughters. It's based on a simple ro
 The original robot uses two geared DC motors controlling the wheels, and is programmable using some pushbuttons on its control circuit. Using the buttons is possible to store a movement sequence and execute it. Since I think this is not quite funny, I've rebuilt its control board using a NodeMCU (esp8266) making it wifi controlled, in real time.
 
 This project is based on original work done by **MertArduino** (https://www.instructables.com/NodeMCU-ESP8266-WiFi-Robot-Car-Controlled-by-Appli/)
+
+Robot icon made by Freepik (https://www.freepik.com), found on Flaticon (https://www.flaticon.com)
