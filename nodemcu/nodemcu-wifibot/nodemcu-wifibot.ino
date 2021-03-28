@@ -1,37 +1,45 @@
-/*
- * Mert Arduino and Tech - YouTube
- * WiFi Robot controlled by Phone (WiFibot/Android/IoT/ESP8266)
- * NodeMCU ESP8266 Tutorial 03
- * Please Subscribe for Support - https://goo.gl/RLT6DT
- */
+// nodemcu-wifibot
+//
+// WiFi-enabled robot (based on NodeMCU - ESP8266) controlled by Android App
+// Written by Salvatore Carotenuto (mailto: ultimoistante@gmail.com)
+//
+// based on original work by Mert Arduino and Tech (YouTube link: https://goo.gl/RLT6DT - github: https://github.com/MertArduino)
+//
+// hardware connections:
+//
+//                              NodeMCU
+//                      +--------------------+
+//  battery monitor --- | A0         D0 [16] | ---
+//                      |            D1 [05] | --- Left motor backward
+//                      |            D2 [04] | --- Left motor forward  
+//                      |            D3 [00] |
+//                      |            D4 [02] | --- Left motor enable
+//                      |                3v3 |
+//                      |                GND |
+//                      |            D5 [14] | --- Right motor backward 
+//                      |            D6 [12] | --- Right motor forward 
+//                      |            D7 [13] | --- Right motor enable
+//                      |            D8 [15] | --- Button
+//                      |         D9/RX [03] |
+//                      |        D10/TX [01] |
+//                      |                GND |
+//                      |                3v3 |
+//                      +--------------------+
+//
 
- //                      +--------------------+
- //  battery monitor --- | A0         D0 [16] | ---
- //                      |            D1 [05] | --- Left motor backward
- //                      |            D2 [04] | --- Left motor forward  
- //                      |            D3 [00] |
- //                      |            D4 [02] | --- Left motor enable
- //                      |                3v3 |
- //                      |                GND |
- //                      |            D5 [14] | --- Right motor backward 
- //                      |            D6 [12] | --- Right motor forward 
- //                      |            D7 [13] | --- Right motor enable
- //                      |            D8 [15] | --- Button
- //                      |         D9/RX [03] |
- //                      |        D10/TX [01] |
- //                      |                GND |
- //                      |                3v3 |
- //                      +--------------------+
-
-
-// libraries
+// includes
 #include <ESP8266WiFi.h>
 #include "LedBlinker.h"
 
 // ----------------------------------------------------------------------------
 
+#define _VERSION_   "1.0.0"
+
+// ----------------------------------------------------------------------------
+
 // ---- pin definitions
 //
+// eyes leds pin
 #define EYES_LEDS             16 // D0
 // motor control pins
 #define LEFT_MOTOR_BACKWARD    5 // D1
@@ -44,52 +52,43 @@
 #define BUTTON_PIN            15 // D8
 
 // ----------------------------------------------------------------------------
+
+// defines used by motor functions
+#define LEFT_MOTOR              1
+#define RIGHT_MOTOR             2
+#define DIRECTION_FORWARD       4
+#define DIRECTION_BACKWARD      8
+
+// time after button "long press" is detected (in milliseconds)
 #define BUTTON_LONG_PRESS_TIME  2000
 
 // ----------------------------------------------------------------------------
+
 
 uint8_t buttonLongPressed = 0;
 unsigned long buttonPressedStartTime = 0;
 
 uint8_t wifiConnected = 0;
 
-/* define port */
-// WiFiClient client;
-// WiFiServer server(80);
+WiFiClient client;
+WiFiServer server(80);
 
-/* WIFI settings */
-// const char* ssid = "UNKNOWN";
-// const char* password = "the.cat.is.on.the.tablet";
+// millisecond timer object
+os_timer_t msecTimer;
 
-/* data received from application */
-String data = "";
-
+// led blinker class instance
 LedBlinker eyesLeds;
 
 
 // ----------------------------------------------------------------------------
 
-// millisecond timer object
-os_timer_t msecTimer;
-// uint8_t timerTickCounter = 0;
 
-// ----------------------------------------------------------------------------
-
-// Current time
-// unsigned long currentTime = millis();
-// Previous time
-// unsigned long previousTime = 0; 
-// Define timeout time in milliseconds (example: 2000ms = 2s)
-// const long timeoutTime = 2000;
-
-// ----------------------------------------------------------------------------
-
-
+// this function is attached to interrupt and called automatically once a millisecond
 void msecTimerCallback(void* pArg)
     {
     unsigned long now = millis();
     //
-    // checks for button long press (2 s)
+    // checks for button long press (2 seconds)
     if (buttonPressedStartTime != 0)
         {
         if ((now - buttonPressedStartTime) > BUTTON_LONG_PRESS_TIME)
@@ -103,25 +102,20 @@ void msecTimerCallback(void* pArg)
         buttonPressedStartTime = (digitalRead(BUTTON_PIN) == 1) ? now : 0;
         }
     //
+    // updates eyes leds
     eyesLeds.update(now);
-    // statusLedHandler.update();
-    // deviceStatusLed.Update();
-    // rpiStatusLed.Update();
-    //
-    // powerButton.check();
-    // wpsButton.check();
     }
 
 
 // ----------------------------------------------------------------------------
 
+
+// tries wifi connection with last stored credentials
 void tryWiFiConnection()
     {
     wifiConnected = 0;
-    eyesLeds.blink(20, 200);
     //
     WiFi.mode(WIFI_STA);
-    // WiFi.begin (ssid, password);
     WiFi.begin(WiFi.SSID().c_str(), WiFi.psk().c_str()); // tries connection with data stored in EEPROM (from last succesful connection)
     WiFi.onEvent(onWiFiEvent);
     Serial.println("trying connection with last stored credentials...");
@@ -137,45 +131,17 @@ void tryWiFiConnection()
         Serial.println("connection timeout!");
     }
 
+
+// ----------------------------------------------------------------------------
+
+
+// callback function called by WiFi manager on WiFi events
 void onWiFiEvent(WiFiEvent_t event)
     {
-    // instance->serialHandler->logDebug("[WiFi-event] event: ");
-    // 
     switch (event)
         {
         case WIFI_EVENT_MODE_CHANGE:
             Serial.println("WIFI_EVENT_MODE_CHANGE");
-            // instance->statusLedHandler->setDeviceStatus(StatusLedHandler::DEVICE_STATUS_LED_MODE_NOT_CONNECTED);
-            /*
-            // WPS button I/O setup
-            // pinMode(0,OUTPUT);         // Use GPIO0
-            // digitalWrite(0,LOW);       // for hardware safe operation.
-            pinMode(WPS_BUTTON_PIN, INPUT_PULLUP);  // Push Button for GPIO2 active LOW
-            // Serial.printf("\nCould not connect to WiFi. state='%d'\n", status);
-            Serial.printf("\nCould not connect to WiFi.\n");
-            Serial.println("Please press WPS button on your router, until mode is indicated.");
-            Serial.println("next press the ESP module WPS button, router WPS timeout = 2 minutes");
-            //
-            while(digitalRead(WPS_BUTTON_PIN) == HIGH)  // wait for WPS Button active
-                yield(); // do nothing, allow background work (WiFi) in while loops
-            //
-            setDeviceStatusLed(DEVICE_STATUS_LED_MODE_TRYING_WPS);
-            Serial.println("WPS button pressed");
-
-            if(!tryWPSConnection())
-                {
-                Serial.println("Failed to connect with WPS :-(");
-                }
-            else
-                {
-                WiFi.begin(WiFi.SSID().c_str(),WiFi.psk().c_str()); // reading data from EPROM,
-                while (WiFi.status() == WL_DISCONNECTED)
-                    {          // last saved credentials
-                    delay(500);
-                    Serial.print("."); // show wait for connect to AP
-                    }
-                //   pinMode(0,INPUT);    // GPIO0, LED OFF, show WPS & connect OK
-                }*/
             break;
         case WIFI_EVENT_STAMODE_CONNECTED:
             Serial.println("WIFI_EVENT_STAMODE_CONNECTED");
@@ -187,21 +153,15 @@ void onWiFiEvent(WiFiEvent_t event)
             wifiConnected = WiFi.status() == WL_CONNECTED ? 1 : 0;
             Serial.printf("Connected: %s\r\n", wifiConnected == 1 ? "yes" : "no");
             //
-            // eyesLeds.blink(20, 1000);
-            eyesLeds.off();
-
-            // instance->statusLedHandler->setDeviceStatus(StatusLedHandler::DEVICE_STATUS_LED_MODE_CONNECTED);
-            // setDeviceStatusLed(DEVICE_STATUS_LED_MODE_CONNECTED);
-            // digitalWrite (ONBOARDLED, LOW); // Turn on LED
-            // wifiFirstConnection = true;
+            // does rapid blinking on eyes leds (10 blinks)
+            eyesLeds.blink(20, 100, 10);
+            //
+            // starts local HTTP server
+            server.begin();
             break;
         case WIFI_EVENT_STAMODE_DISCONNECTED:
             Serial.println("WIFI_EVENT_STAMODE_DISCONNECTED");
             Serial.printf("Disconnected from SSID: %s\n", WiFi.BSSIDstr().c_str());
-            // setDeviceStatusLed(DEVICE_STATUS_LED_MODE_CONNECTING);
-            //Serial.printf ("Reason: %d\n", info.disconnected.reason);
-            // digitalWrite (ONBOARDLED, HIGH); // Turn off LED
-            //NTP.stop(); // NTP sync can be disabled to avoid sync errors
             WiFi.reconnect();
             break;
         default:
@@ -211,14 +171,13 @@ void onWiFiEvent(WiFiEvent_t event)
         }
     }
 
+
 // -----------------------------------------------------------------------------
 
 
 bool tryWPSConnection()
     {
-    // from https://gist.github.com/copa2/fcc718c6549721c210d614a325271389
-    // wpstest.ino
-    // this->statusLedHandler->setDeviceStatus(StatusLedHandler::DEVICE_STATUS_LED_MODE_TRYING_WPS);
+    // taken from https://gist.github.com/copa2/fcc718c6549721c210d614a325271389
     //
     Serial.println("WPS config start");
     bool wpsSuccess = WiFi.beginWPSConfig();
@@ -232,9 +191,7 @@ bool tryWPSConnection()
             Serial.printf("WPS finished. Connected successfull to SSID '%s'\n", newSSID.c_str());
             }
         else
-            {
             wpsSuccess = false;
-            }
         }
     return wpsSuccess;
     }
@@ -257,41 +214,25 @@ void setup()
     // initializes eyes leds pin as output
     pinMode(EYES_LEDS, OUTPUT);
     digitalWrite(EYES_LEDS, LOW);
+    //
     // initializes led blinker
     eyesLeds.begin(EYES_LEDS);
     //
-    // starts millisecond timer
+    // starts millisecond timer and attaches msecTimerCallback function to it
     os_timer_setfn(&msecTimer, msecTimerCallback, NULL);
     os_timer_arm(&msecTimer, 1, true);
     //
+    // starts serial
     Serial.begin(115200);
+    delay(50);
+    Serial.println("\n\n");
+    Serial.println("\nNodeMCU WiFi Bot - version " _VERSION_ " started");
     delay(10);
-    Serial.println('\n');
-
-
-    tryWiFiConnection();
-    // WiFi.begin(ssid, password);             // Connect to the network
-    // Serial.print("Connecting to ");
-    // Serial.print(ssid); Serial.println(" ...");
-
-    // int i = 0;
-    // while (WiFi.status() != WL_CONNECTED)
-    //     { // Wait for the Wi-Fi to connect
-    //     digitalWrite(EYES_LEDS, HIGH);
-    //     delay(50);
-    //     digitalWrite(EYES_LEDS, LOW);
-    //     delay(950);
-    //     Serial.print(++i); Serial.print(' ');
-    //     }
-
-    // Serial.println('\n');
-    // digitalWrite(EYES_LEDS, HIGH);
-    // Serial.println("Connection established!");
-    // Serial.print("IP address:\t");
-    // Serial.println(WiFi.localIP());         // Send the IP address of the ESP8266 to the computer
     //
-    // start server communication
-    // server.begin();
+    // tries wifi connection with stored credentials
+    eyesLeds.blink(20, 250);
+    tryWiFiConnection();
+    //
     }
 
 
@@ -300,125 +241,181 @@ void setup()
 
 void loop()
     {
+    // checks if we have "long pressed" the button
     if (buttonLongPressed)
         {
-        Serial.println("BUTTON!");
+        // in this case, erases stored credentials an tries WPS connection
         buttonLongPressed = 0;
         //
         WiFi.disconnect();
+        eyesLeds.blink(20, 500);
         tryWPSConnection();
         }
-    // Serial.print("button: ");
-    // Serial.println(digitalRead(BUTTON_PIN));
-    // delay(10);
-
-    /*
-    // If the server available, run the "checkClient" function
+    //
+    // checks for incoming connections
     client = server.available();
-    if (!client) return;
-    data = checkClient();
-
-    Serial.print("Data: ");
-    Serial.println(data);
-
-    // Run function according to incoming data from application
-
-    // If the incoming data is "forward", run the "MotorForward" function
-    if (data == "forward")
+    if (client)
         {
-        //server.send(200, "text/plain", "OK");
-        client.println("ok");
-        MotorForward();
+        bool validRequest = true;
+        // waits for client to become available
+        while (!client.available()) delay(1);
+        // reads request path from HTTP request
+        String request = client.readStringUntil('\r');
+        Serial.print("request: ");
+        Serial.println(request);
+        request.remove(0, 5);
+        request.remove(request.length() - 9, 9);
+        //
+        // if request is "forward", calls "goForward" function
+        if (request == "forward")
+            {
+            sendHttpOkResponse(&client, NULL);
+            goForward();
+            }
+        // if request is "backward", calls "goBackward" function
+        else if (request == "backward")
+            {
+            sendHttpOkResponse(&client, NULL);
+            goBackward();
+            }
+        // if request is "left", calls "turnLeft" function
+        else if (request == "left")
+            {
+            sendHttpOkResponse(&client, NULL);
+            turnLeft();
+            }
+        // if request is "right", calls "turnRight" function
+        else if (request == "right")
+            {
+            sendHttpOkResponse(&client, NULL);
+            turnRight();
+            }
+        // if request is "stop", calls "stop" function
+        else if (request == "stop")
+            {
+            sendHttpOkResponse(&client, NULL);
+            stop();
+            }
+        // if request is "whoareyou", returns "nodemcuwifibot"
+        // NOTE: this request is used by app to find motor in the network
+        else if (request == "whoareyou")
+            {
+            sendHttpOkResponse(&client, "nodemcuwifibot");
+            }
+        else
+            {
+            validRequest = false;
+            }
+        //
+        if (validRequest)
+            // does rapid blinking on eyes leds (3 blinks)
+            eyesLeds.blink(20, 100, 3);
         }
-    // If the incoming data is "backward", run the "MotorBackward" function
-    else if (data == "backward")
-        {
-        //server.send(200, "text/plain", "OK");
-        client.println("ok");
-        MotorBackward();
-        }
-    // If the incoming data is "left", run the "TurnLeft" function
-    else if (data == "left")
-        {
-        //server.send(200, "text/plain", "OK");
-        client.println("ok");
-        TurnLeft();
-        }
-    // If the incoming data is "right", run the "TurnRight" function
-    else if (data == "right")
-        {
-        //server.send(200, "text/plain", "OK");
-        client.println("ok");
-        TurnRight();
-        }
-    // If the incoming data is "stop", run the "MotorStop" function
-    else if (data == "stop")
-        {
-        //server.send(200, "text/plain", "OK");
-        client.println("ok");
-        MotorStop();
-        }
-    // If the incoming data is "whoareyou", returns "nodemcuwifibot"
-    else if (data == "whoareyou")
-        {
-        // server.send(200, "text/plain", "nodemcuwifibot");
-        client.println("HTTP/1.1 200 OK");
-        client.println("Content-type:text/plain");
-        client.println("Connection: close");
-        client.println();
-        client.println("nodemcuwifibot");
-        }*/
     }
 
 
 // ----------------------------------------------------------------------------
 
 
-void MotorForward(void)
+void sendHttpOkResponse(WiFiClient* client, const char* data)
     {
-    digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
-    digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
-    digitalWrite(LEFT_MOTOR_FORWARD, HIGH);
-    digitalWrite(RIGHT_MOTOR_FORWARD, HIGH);
-    digitalWrite(LEFT_MOTOR_BACKWARD, LOW);
-    digitalWrite(RIGHT_MOTOR_BACKWARD, LOW);
+    if (client)
+        {
+        client->println("HTTP/1.1 200 OK");
+        client->println("Content-type:text/plain");
+        client->println("Connection: close");
+        client->println();
+        if (data)
+            client->println(data);
+        }
     }
 
-/********************************************* BACKWARD *****************************************************/
-void MotorBackward(void)
+
+// ----------------------------------------------------------------------------
+
+
+void setMotorDirection(uint8_t motor, uint8_t direction)
     {
-    digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
-    digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
-    digitalWrite(LEFT_MOTOR_BACKWARD, HIGH);
-    digitalWrite(RIGHT_MOTOR_BACKWARD, HIGH);
-    digitalWrite(LEFT_MOTOR_FORWARD, LOW);
-    digitalWrite(RIGHT_MOTOR_FORWARD, LOW);
+    int forward_pin = 0;
+    int backward_pin = 0;
+    if (motor == LEFT_MOTOR)
+        {
+        forward_pin = LEFT_MOTOR_FORWARD;
+        backward_pin = LEFT_MOTOR_BACKWARD;
+        }
+    else if (motor == RIGHT_MOTOR)
+        {
+        forward_pin = LEFT_MOTOR_FORWARD;
+        backward_pin = LEFT_MOTOR_BACKWARD;
+        }
+    if (forward_pin && backward_pin)
+        {
+        digitalWrite(forward_pin, (direction == DIRECTION_FORWARD) ? LOW : HIGH);
+        digitalWrite(backward_pin, (direction == DIRECTION_FORWARD) ? HIGH : LOW);
+        }
     }
 
-/********************************************* TURN LEFT *****************************************************/
-void TurnLeft(void)
+
+// ----------------------------------------------------------------------------
+
+
+void goForward(void)
     {
+    // sets both motors direction
+    setMotorDirection(LEFT_MOTOR, DIRECTION_FORWARD);
+    setMotorDirection(RIGHT_MOTOR, DIRECTION_FORWARD);
+    // then enables both motors
     digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
     digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
-    digitalWrite(LEFT_MOTOR_FORWARD, LOW);
-    digitalWrite(RIGHT_MOTOR_FORWARD, HIGH);
-    digitalWrite(RIGHT_MOTOR_BACKWARD, LOW);
-    digitalWrite(LEFT_MOTOR_BACKWARD, HIGH);
     }
 
-/********************************************* TURN RIGHT *****************************************************/
-void TurnRight(void)
+
+// ----------------------------------------------------------------------------
+
+
+void goBackward(void)
     {
+    // sets both motors direction
+    setMotorDirection(LEFT_MOTOR, DIRECTION_BACKWARD);
+    setMotorDirection(RIGHT_MOTOR, DIRECTION_BACKWARD);
+    // then enables both motors
     digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
     digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
-    digitalWrite(LEFT_MOTOR_FORWARD, HIGH);
-    digitalWrite(RIGHT_MOTOR_FORWARD, LOW);
-    digitalWrite(RIGHT_MOTOR_BACKWARD, HIGH);
-    digitalWrite(LEFT_MOTOR_BACKWARD, LOW);
     }
 
-/********************************************* STOP *****************************************************/
-void MotorStop(void)
+
+// ----------------------------------------------------------------------------
+
+
+void turnLeft(void)
+    {
+    // sets both motors direction
+    setMotorDirection(LEFT_MOTOR, DIRECTION_BACKWARD);  // left wheel to forward
+    setMotorDirection(RIGHT_MOTOR, DIRECTION_FORWARD);  // right wheel to backward
+    // then enables both motors
+    digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
+    digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
+    }
+
+
+// ----------------------------------------------------------------------------
+
+
+void turnRight(void)
+    {
+    // sets both motors direction
+    setMotorDirection(LEFT_MOTOR, DIRECTION_FORWARD);  // left wheel to forward
+    setMotorDirection(RIGHT_MOTOR, DIRECTION_BACKWARD);  // right wheel to backward
+    // then enables both motors
+    digitalWrite(LEFT_MOTOR_ENABLE, HIGH);
+    digitalWrite(RIGHT_MOTOR_ENABLE, HIGH);
+    }
+
+
+// ----------------------------------------------------------------------------
+
+
+void stop(void)
     {
     digitalWrite(LEFT_MOTOR_ENABLE, LOW);
     digitalWrite(RIGHT_MOTOR_ENABLE, LOW);
@@ -428,15 +425,5 @@ void MotorStop(void)
     digitalWrite(RIGHT_MOTOR_BACKWARD, LOW);
     }
 
-/********************************** RECEIVE DATA FROM the APP ******************************************/
-/*String checkClient(void)
-    {
-    while (!client.available())
-        delay(1);
-    String request = client.readStringUntil('\r');
-    Serial.print("request: ");
-    Serial.println(request);
-    request.remove(0, 5);
-    request.remove(request.length() - 9, 9);
-    return request;
-    }*/
+
+// ----------------------------------------------------------------------------
