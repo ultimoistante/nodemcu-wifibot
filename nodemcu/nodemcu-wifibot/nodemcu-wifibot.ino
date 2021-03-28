@@ -50,6 +50,8 @@
 #define RIGHT_MOTOR_ENABLE    13 // D7
 // button pin
 #define BUTTON_PIN            15 // D8
+// battery monitor pin
+#define BATTERY_MONITOR_PIN   A0 // D8
 
 // ----------------------------------------------------------------------------
 
@@ -61,6 +63,10 @@
 
 // time after button "long press" is detected (in milliseconds)
 #define BUTTON_LONG_PRESS_TIME  2000
+
+#define BATTERY_CHECK_INTERVAL      5000
+#define BATTERY_CHECK_RATIO_FACTOR  2.15 // battery monitor voltage divider ratio factor
+#define BATTERY_CUTOFF_LIMIT        3.6  // cutoff limit for 4 NiMH batteries
 
 // ----------------------------------------------------------------------------
 
@@ -79,6 +85,8 @@ os_timer_t msecTimer;
 // led blinker class instance
 LedBlinker eyesLeds;
 
+uint32_t nextBatteryCheckTime = 0;
+bool batteryProtection = false;
 
 // ----------------------------------------------------------------------------
 
@@ -241,6 +249,39 @@ void setup()
 
 void loop()
     {
+    //
+    // does nothing if in battery protection mode
+    if (batteryProtection)
+        return;
+    //
+    unsigned long now = millis();
+    //
+    // checks battery voltage
+    if (now >= nextBatteryCheckTime)
+        {
+        float batteryVoltage = 0.0;
+        unsigned int adcValue = 0;
+        for (uint8_t i = 0; i < 10; i++)
+            {
+            adcValue += analogRead(BATTERY_MONITOR_PIN); // reads analog voltage on A0
+            delay(5); // waits for ADC to stabilize
+            }
+        batteryVoltage = (float)adcValue / 10.0; // gets average of 10 values read
+        batteryVoltage = ((batteryVoltage / 1024.0) * 3.3) * BATTERY_CHECK_RATIO_FACTOR;
+        //
+        nextBatteryCheckTime = now + BATTERY_CHECK_INTERVAL + 50;
+        Serial.print("Battery voltage: ");
+        Serial.print(batteryVoltage);
+        Serial.println(" volts");
+        if (batteryVoltage <= BATTERY_CUTOFF_LIMIT)
+            {
+            Serial.println("Batteries discharged! Going in battery protection mode...");
+            stop();
+            eyesLeds.blink(20, 1000);
+            batteryProtection = true;
+            }
+        }
+    //
     // checks if we have "long pressed" the button
     if (buttonLongPressed)
         {
