@@ -204,10 +204,10 @@ void setup()
     {
     // initializes all motor control/enable pins as output
     pinMode(LEFT_MOTOR_FORWARD, OUTPUT);
-    pinMode(RIGHT_MOTOR_FORWARD, OUTPUT);
     pinMode(LEFT_MOTOR_BACKWARD, OUTPUT);
-    pinMode(RIGHT_MOTOR_BACKWARD, OUTPUT);
     pinMode(LEFT_MOTOR_ENABLE, OUTPUT);
+    pinMode(RIGHT_MOTOR_FORWARD, OUTPUT);
+    pinMode(RIGHT_MOTOR_BACKWARD, OUTPUT);
     pinMode(RIGHT_MOTOR_ENABLE, OUTPUT);
     // initializes button pin as input
     pinMode(BUTTON_PIN, INPUT);
@@ -345,13 +345,13 @@ void setMotorDirection(uint8_t motor, uint8_t direction)
         }
     else if (motor == RIGHT_MOTOR)
         {
-        forward_pin = LEFT_MOTOR_FORWARD;
-        backward_pin = LEFT_MOTOR_BACKWARD;
+        forward_pin = RIGHT_MOTOR_FORWARD;
+        backward_pin = RIGHT_MOTOR_BACKWARD;
         }
     if (forward_pin && backward_pin)
         {
-        digitalWrite(forward_pin, (direction == DIRECTION_FORWARD) ? LOW : HIGH);
-        digitalWrite(backward_pin, (direction == DIRECTION_FORWARD) ? HIGH : LOW);
+        digitalWrite(forward_pin, (direction == DIRECTION_FORWARD) ? HIGH : LOW);
+        digitalWrite(backward_pin, (direction == DIRECTION_FORWARD) ? LOW : HIGH);
         }
     }
 
